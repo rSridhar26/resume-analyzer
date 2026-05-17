@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required) - The user's unique ID.
+    //   - email: string (required) - The user's email address.
+    //   - displayName: string (optional) - The user's display name.
+    //   - photoURL: string (optional) - The user's profile photo URL.
+    //   - role: string (required) - The user's role (student, admin).
+    //   - createdAt: string (required) - When the user was created.
+    //   - updatedAt: string (optional) - When the user was last updated.
+    //
+    // Collection: resumeAnalyses
+    // Document ID: {analysisId}
+    // Fields:
+    //   - uid: string (required) - The user's unique ID.
+    //   - atsScore: number (required) - The ATS score.
+    //   - keywordMatchScore: number (optional) - Keyword match score.
+    //   - skillsScore: number (optional) - Skills score.
+    //   - experienceStrength: number (optional) - Experience strength score.
+    //   - formattingScore: number (optional) - Formatting score.
+    //   - grammarScore: number (optional) - Grammar score.
+    //   - feedback: string (optional) - Detailed feedback.
+    //   - resumeText: string (optional) - The parsed text of the resume.
+    //   - createdAt: string (required) - When the analysis was created.
+    //
+    // Collection: jobApplications
+    // Document ID: {applicationId}
+    // Fields:
+    //   - uid: string (required) - The user's unique ID.
+    //   - companyName: string (required) - The company name.
+    //   - role: string (required) - The job role.
+    //   - status: string (required) - The application status.
+    //   - appliedDate: string (optional) - When the application was submitted.
+    //   - notes: string (optional) - Additional notes.
+    //   - createdAt: string (required) - When the record was created.
+    //   - updatedAt: string (optional) - When the record was last updated.
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "ramakrishnansridhar3@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500)) &&
+             data.role in ['student', 'admin'] &&
+             data.createdAt is string && isValidDateString(data.createdAt) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && isValidDateString(data.updatedAt)));
+    }
+
+    function isValidResumeAnalysis(data) {
+      return hasOnlyAllowedFields(['uid', 'atsScore', 'keywordMatchScore', 'skillsScore', 'experienceStrength', 'formattingScore', 'grammarScore', 'feedback', 'missingKeywords', 'weakestSection', 'topImprovement', 'resumeText', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.atsScore is number && data.atsScore >= 0 && data.atsScore <= 100 &&
+             (!('keywordMatchScore' in data) || (data.keywordMatchScore is number && data.keywordMatchScore >= 0 && data.keywordMatchScore <= 100)) &&
+             (!('skillsScore' in data) || (data.skillsScore is number && data.skillsScore >= 0 && data.skillsScore <= 100)) &&
+             (!('experienceStrength' in data) || (data.experienceStrength is number && data.experienceStrength >= 0 && data.experienceStrength <= 100)) &&
+             (!('formattingScore' in data) || (data.formattingScore is number && data.formattingScore >= 0 && data.formattingScore <= 100)) &&
+             (!('grammarScore' in data) || (data.grammarScore is number && data.grammarScore >= 0 && data.grammarScore <= 100)) &&
+             (!('feedback' in data) || (data.feedback is string && data.feedback.size() < 100000)) &&
+             (!('missingKeywords' in data) || (data.missingKeywords is list && data.missingKeywords.size() <= 50)) &&
+             (!('weakestSection' in data) || (data.weakestSection is string && data.weakestSection.size() < 200)) &&
+             (!('topImprovement' in data) || (data.topImprovement is string && data.topImprovement.size() < 500)) &&
+             (!('resumeText' in data) || (data.resumeText is string && data.resumeText.size() < 500000)) &&
+             data.createdAt is string && isValidDateString(data.createdAt);
+    }
+
+    function isValidJobApplication(data) {
+      return hasOnlyAllowedFields(['uid', 'companyName', 'role', 'status', 'appliedDate', 'notes', 'createdAt', 'updatedAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.companyName is string && data.companyName.size() > 0 && data.companyName.size() < 200 &&
+             data.role is string && data.role.size() > 0 && data.role.size() < 200 &&
+             data.status in ['Applied', 'Interview Scheduled', 'Rejected', 'Offer Received'] &&
+             (!('appliedDate' in data) || (data.appliedDate is string && isValidDateString(data.appliedDate))) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 10000)) &&
+             data.createdAt is string && isValidDateString(data.createdAt) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && isValidDateString(data.updatedAt)));
+    }
+
+    function isValidRoleReadinessMatch(data) {
+      return hasOnlyAllowedFields(['uid', 'matchPercentage', 'jobTitle', 'company', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.matchPercentage is number && data.matchPercentage >= 0 && data.matchPercentage <= 100 &&
+             data.jobTitle is string && data.jobTitle.size() > 0 && data.jobTitle.size() < 200 &&
+             data.company is string && data.company.size() > 0 && data.company.size() < 200 &&
+             data.createdAt is string && isValidDateString(data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && uidUnchanged() && ((isOwner(userId) && request.resource.data.role == 'student') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && uidNotModified() && ((isOwner(userId) && request.resource.data.role == resource.data.role && request.resource.data.createdAt == resource.data.createdAt) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /resumeAnalyses/{analysisId} {
+      allow read: if isOwner(resource.data.uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidResumeAnalysis(request.resource.data) && uidUnchanged() && isOwner(request.resource.data.uid);
+      allow update: if isAuthenticated() && isValidResumeAnalysis(request.resource.data) && uidNotModified() && isOwner(resource.data.uid) && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+
+    match /jobApplications/{applicationId} {
+      allow read: if isOwner(resource.data.uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidJobApplication(request.resource.data) && uidUnchanged() && isOwner(request.resource.data.uid);
+      allow update: if isAuthenticated() && isValidJobApplication(request.resource.data) && uidNotModified() && isOwner(resource.data.uid) && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+
+    match /roleReadinessMatches/{matchId} {
+      allow read: if isOwner(resource.data.uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidRoleReadinessMatch(request.resource.data) && uidUnchanged() && isOwner(request.resource.data.uid);
+      allow update: if isAuthenticated() && isValidRoleReadinessMatch(request.resource.data) && uidNotModified() && isOwner(resource.data.uid) && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+  }
+}

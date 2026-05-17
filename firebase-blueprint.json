@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the HireMe AI app.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "photoURL": { "type": "string", "description": "The user's profile photo URL." },
+        "role": { "type": "string", "enum": ["student", "admin"], "description": "The user's role." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "When the user was last updated." }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "ResumeAnalysis": {
+      "title": "ResumeAnalysis",
+      "description": "Analysis of a user's resume.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID." },
+        "atsScore": { "type": "number", "description": "The ATS score." },
+        "keywordMatchScore": { "type": "number", "description": "Keyword match score." },
+        "skillsScore": { "type": "number", "description": "Skills score." },
+        "experienceStrength": { "type": "number", "description": "Experience strength score." },
+        "formattingScore": { "type": "number", "description": "Formatting score." },
+        "grammarScore": { "type": "number", "description": "Grammar score." },
+        "feedback": { "type": "string", "description": "Detailed feedback." },
+        "missingKeywords": { "type": "array", "items": { "type": "string" }, "description": "Missing keywords." },
+        "weakestSection": { "type": "string", "description": "Weakest section." },
+        "topImprovement": { "type": "string", "description": "Top improvement." },
+        "resumeText": { "type": "string", "description": "The parsed text of the resume." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the analysis was created." }
+      },
+      "required": ["uid", "atsScore", "createdAt"]
+    },
+    "JobApplication": {
+      "title": "JobApplication",
+      "description": "A job application tracked by the user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID." },
+        "companyName": { "type": "string", "description": "The company name." },
+        "role": { "type": "string", "description": "The job role." },
+        "status": { "type": "string", "enum": ["Applied", "Interview Scheduled", "Rejected", "Offer Received"], "description": "The application status." },
+        "appliedDate": { "type": "string", "format": "date-time", "description": "When the application was submitted." },
+        "notes": { "type": "string", "description": "Additional notes." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the record was created." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "When the record was last updated." }
+      },
+      "required": ["uid", "companyName", "role", "status", "createdAt"]
+    },
+    "RoleReadinessMatch": {
+      "title": "RoleReadinessMatch",
+      "description": "A role readiness match result.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID." },
+        "matchPercentage": { "type": "number", "description": "The match percentage." },
+        "jobTitle": { "type": "string", "description": "The job title." },
+        "company": { "type": "string", "description": "The company name." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the match was created." }
+      },
+      "required": ["uid", "matchPercentage", "jobTitle", "company", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/resumeAnalyses/{analysisId}": {
+      "schema": { "$ref": "#/entities/ResumeAnalysis" },
+      "description": "Stores resume analyses."
+    },
+    "/jobApplications/{applicationId}": {
+      "schema": { "$ref": "#/entities/JobApplication" },
+      "description": "Stores job applications."
+    },
+    "/roleReadinessMatches/{matchId}": {
+      "schema": { "$ref": "#/entities/RoleReadinessMatch" },
+      "description": "Stores role readiness matches."
+    }
+  }
+}
